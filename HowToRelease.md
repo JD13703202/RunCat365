@@ -2,14 +2,10 @@
 
 This document is for code owners.
 
-## 1. Update Version Numbers
+## 1. Update Version Number
 
-Version numbers must be updated in **two** locations:
-
-1. **RunCat365/RunCat365.csproj**
-   - Update `<Version>X.Y.Z</Version>` (3-digit format)
-2. **WapForStore/Package.appxmanifest**
-   - Update `Version="X.Y.Z.0"` in the `<Identity>` element (4-digit format)
+Update the version in **RunCat365/RunCat365.csproj**:
+- Update `<Version>X.Y.Z</Version>` (3-digit format)
 
 ## 2. Build the App
 
@@ -18,7 +14,7 @@ Version numbers must be updated in **two** locations:
 
 ## 3. Create the Package
 
-1. In Visual Studio, right-click on the **WapForStore** project
+1. In Visual Studio, right-click on the **RunCat365** project
 2. Select **Publish** > **Create App Packages**
 3. Choose **Microsoft Store as MSIX package** and sign in with your Microsoft account
 4. Select the existing app "RunCat 365"

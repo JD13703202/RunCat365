@@ -62,6 +62,9 @@ namespace RunCat365
         private readonly PerformanceCounter idleCounter;
         private readonly List<CPUInfo> cpuInfoList = [];
         private const int CPU_INFO_LIST_LIMIT_SIZE = 5;
+        private const int TEMPERATURE_RETRY_COUNT = 3;
+        private const int TEMPERATURE_RETRY_DELAY_MS = 50;
+        private static float lastValidTemperature = 0;
 
         // Added additional support for motherboard and GPU (helps expose CPU sensors on some systems)
         public static readonly LHM.Computer Computer = new LHM.Computer
@@ -147,33 +150,29 @@ namespace RunCat365
             if (Computer == null)
                 return 0;
 
-            foreach (var hardware in Computer.Hardware)
+            for (int retry = 0; retry < TEMPERATURE_RETRY_COUNT; retry++)
             {
-                hardware.Update();
-                foreach (var sensor in hardware.Sensors)
+                foreach (var hardware in Computer.Hardware)
                 {
-                    if (sensor.SensorType == LHM.SensorType.Temperature && sensor.Value.HasValue)
+                    if (hardware.HardwareType != LHM.HardwareType.Cpu)
+                        continue;
+
+                    hardware.Update();
+                    foreach (var sensor in hardware.Sensors)
                     {
-                        if (hardware.HardwareType == LHM.HardwareType.Cpu)
+                        if (sensor.SensorType == LHM.SensorType.Temperature && sensor.Value.HasValue)
                         {
-                            return sensor.Value.Value;
+                            lastValidTemperature = sensor.Value.Value;
+                            return lastValidTemperature;
                         }
                     }
                 }
+
+                if (retry < TEMPERATURE_RETRY_COUNT - 1)
+                    Thread.Sleep(TEMPERATURE_RETRY_DELAY_MS);
             }
 
-            foreach (var hardware in Computer.Hardware)
-            {
-                foreach (var sensor in hardware.Sensors)
-                {
-                    if (sensor.SensorType == LHM.SensorType.Temperature && sensor.Value.HasValue)
-                    {
-                        return sensor.Value.Value;
-                    }
-                }
-            }
-
-            return 0;
+            return lastValidTemperature;
         }
 
         private static bool IsRunningAsAdministrator()

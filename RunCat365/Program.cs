@@ -50,7 +50,7 @@ namespace RunCat365
     internal class RunCat365ApplicationContext : ApplicationContext
     {
         private const int FETCH_TIMER_DEFAULT_INTERVAL = 1000;
-        private const int FETCH_COUNTER_SIZE = 5;
+        private const int FETCH_COUNTER_SIZE = 1;
         private const int ANIMATE_TIMER_DEFAULT_INTERVAL = 200;
         private readonly CPURepository cpuRepository;
         private readonly GPURepository gpuRepository;

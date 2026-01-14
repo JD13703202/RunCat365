@@ -17,6 +17,13 @@
 
 `C#` `Win32` `.NET 9.0` `Visual Studio` `RunCat`
 
+## Features
+
+- Taskbar animation that reflects CPU usage (speed changes with load)
+- System info in tooltip/menu (CPU, GPU, memory, storage, network)
+- Temperature display (CPU/GPU, best-effort; may require Administrator privileges and supported hardware)
+- Themes, multiple runners, and an optional endless mini-game
+
 ## Demo
 
 <img src="./docs/images/demo.gif" width="600" height="200" alt="demo" />

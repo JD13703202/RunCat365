@@ -12,7 +12,6 @@
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
 
-using System.Diagnostics;
 using RunCat365.Properties;
 using LHM = LibreHardwareMonitor.Hardware;
 
@@ -20,8 +19,7 @@ namespace RunCat365
 {
     struct GPUInfo
     {
-        internal float Average { get; set; }
-        internal float Maximum { get; set; }
+        internal float Load { get; set; }
         internal float Temperature { get; set; }
     }
 
@@ -32,7 +30,7 @@ namespace RunCat365
             var resultLines = new List<string>
             {
                 TreeFormatter.CreateRoot($"{Strings.SystemInfo_GPU}:"),
-                TreeFormatter.CreateNode($"Usage: {gpuInfo.Maximum:f1}%", false)
+                TreeFormatter.CreateNode($"Usage: {gpuInfo.Load:f1}%", false)
             };
 
             if (gpuInfo.Temperature > 0)
@@ -46,73 +44,53 @@ namespace RunCat365
 
     internal class GPURepository
     {
-        private readonly List<PerformanceCounter> gpuCounters = [];
         private readonly List<GPUInfo> gpuInfoList = [];
         private const int GPU_INFO_LIST_LIMIT_SIZE = 5;
+        private const int GPU_RETRY_COUNT = 3;
+        private const int GPU_RETRY_DELAY_MS = 50;
+        private static float lastValidLoad = 0;
+        private static float lastValidTemperature = 0;
 
         internal bool IsAvailable { get; private set; } = true;
 
         internal GPURepository()
         {
-            try
-            {
-                var category = new PerformanceCounterCategory("GPU Engine");
-                var instanceNames = category.GetInstanceNames();
-                var instances = instanceNames.Where(n => n.Contains("engtype_3D")).ToList();
-                if (instances.Count > 0)
-                {
-                    foreach (var instance in instances)
-                    {
-                        var counter = new PerformanceCounter("GPU Engine", "Utilization Percentage", instance);
-                        gpuCounters.Add(counter);
+            IsAvailable = HasGPUHardware();
+        }
 
-                        // Discards first return value
-                        _ = counter.NextValue();
-                    }
-                }
-                else
-                {
-                    IsAvailable = false;
-                }
-            }
-            catch
+        private static bool HasGPUHardware()
+        {
+            if (CPURepository.Computer == null)
+                return false;
+
+            foreach (var hardware in CPURepository.Computer.Hardware)
             {
-                IsAvailable = false;
+                if (hardware.HardwareType == LHM.HardwareType.GpuNvidia ||
+                    hardware.HardwareType == LHM.HardwareType.GpuAmd ||
+                    hardware.HardwareType == LHM.HardwareType.GpuIntel)
+                {
+                    return true;
+                }
             }
+            return false;
         }
 
         internal void Update()
         {
-            if (!IsAvailable || gpuCounters.Count == 0) return;
-            try
+            if (!IsAvailable) return;
+
+            var (load, temperature) = GetGPULoadAndTemperature();
+
+            var gpuInfo = new GPUInfo
             {
-                var values = gpuCounters.Select(counter => counter.NextValue()).ToList();
-                var average = values.Count > 0 ? values.Average() : 0f;
-                var maximum = values.Count > 0 ? values.Max() : 0f;
-                var temperature = 0f;
+                Load = load,
+                Temperature = temperature
+            };
 
-                try
-                {
-                    temperature = GetGPUTemperature();
-                }
-                catch { }
-
-                var gpuInfo = new GPUInfo
-                {
-                    Average = Math.Min(100, average),
-                    Maximum = Math.Min(100, maximum),
-                    Temperature = temperature
-                };
-
-                gpuInfoList.Add(gpuInfo);
-                if (GPU_INFO_LIST_LIMIT_SIZE < gpuInfoList.Count)
-                {
-                    gpuInfoList.RemoveAt(0);
-                }
-            }
-            catch
+            gpuInfoList.Add(gpuInfo);
+            if (GPU_INFO_LIST_LIMIT_SIZE < gpuInfoList.Count)
             {
-                // 静默处理，不设置 IsAvailable = false
+                gpuInfoList.RemoveAt(0);
             }
         }
 
@@ -123,51 +101,87 @@ namespace RunCat365
             var latestGpuInfo = gpuInfoList[^1];
             return new GPUInfo
             {
-                Average = latestGpuInfo.Average,
-                Maximum = latestGpuInfo.Maximum,
+                Load = latestGpuInfo.Load,
                 Temperature = latestGpuInfo.Temperature
             };
         }
 
-        private static float GetGPUTemperature()
+        private static (float load, float temperature) GetGPULoadAndTemperature()
         {
-            try
-            {
-                if (CPURepository.Computer == null)
-                    return 0;
+            if (CPURepository.Computer == null)
+                return (lastValidLoad, lastValidTemperature);
 
+            for (int retry = 0; retry < GPU_RETRY_COUNT; retry++)
+            {
                 foreach (var hardware in CPURepository.Computer.Hardware)
                 {
+                    if (hardware.HardwareType != LHM.HardwareType.GpuNvidia &&
+                        hardware.HardwareType != LHM.HardwareType.GpuAmd &&
+                        hardware.HardwareType != LHM.HardwareType.GpuIntel)
+                        continue;
+
                     try
                     {
                         hardware.Update();
                     }
-                    catch { continue; }
+                    catch
+                    {
+                        continue;
+                    }
+
+                    float? load = null;
+                    float? coreTemperature = null;
+                    float? hotSpotTemperature = null;
 
                     foreach (var sensor in hardware.Sensors)
                     {
-                        if (sensor.SensorType == LHM.SensorType.Temperature && sensor.Value.HasValue)
+                        if (!sensor.Value.HasValue)
+                            continue;
+
+                        if (sensor.SensorType == LHM.SensorType.Load)
                         {
-                            if (hardware.HardwareType == LHM.HardwareType.GpuNvidia ||
-                                hardware.HardwareType == LHM.HardwareType.GpuAmd ||
-                                hardware.HardwareType == LHM.HardwareType.GpuIntel)
+                            if (sensor.Name.Equals("GPU Core", StringComparison.OrdinalIgnoreCase) ||
+                                sensor.Name.Equals("D3D 3D", StringComparison.OrdinalIgnoreCase) ||
+                                sensor.Name.StartsWith("GPU", StringComparison.OrdinalIgnoreCase))
                             {
-                                return sensor.Value.Value;
+                                if (!load.HasValue || sensor.Name.Equals("GPU Core", StringComparison.OrdinalIgnoreCase))
+                                    load = sensor.Value.Value;
+                            }
+                        }
+                        else if (sensor.SensorType == LHM.SensorType.Temperature)
+                        {
+                            if (sensor.Name.Contains("Hot Spot", StringComparison.OrdinalIgnoreCase) ||
+                                sensor.Name.Contains("Hotspot", StringComparison.OrdinalIgnoreCase))
+                            {
+                                hotSpotTemperature = sensor.Value.Value;
+                            }
+                            else if (sensor.Name.Equals("GPU Core", StringComparison.OrdinalIgnoreCase))
+                            {
+                                coreTemperature = sensor.Value.Value;
                             }
                         }
                     }
+
+                    var temperature = hotSpotTemperature ?? coreTemperature;
+
+                    if (load.HasValue)
+                    {
+                        lastValidLoad = Math.Min(100, load.Value);
+                        if (temperature.HasValue)
+                            lastValidTemperature = temperature.Value;
+                        return (lastValidLoad, lastValidTemperature);
+                    }
                 }
+
+                if (retry < GPU_RETRY_COUNT - 1)
+                    Thread.Sleep(GPU_RETRY_DELAY_MS);
             }
-            catch { }
-            return 0;
+
+            return (lastValidLoad, lastValidTemperature);
         }
 
         internal void Close()
         {
-            foreach (var counter in gpuCounters)
-            {
-                counter.Close();
-            }
         }
     }
 }
