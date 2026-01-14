@@ -14,6 +14,7 @@
 
 using System.Diagnostics;
 using RunCat365.Properties;
+using LHM = LibreHardwareMonitor.Hardware;
 
 namespace RunCat365
 {
@@ -21,6 +22,7 @@ namespace RunCat365
     {
         internal float Average { get; set; }
         internal float Maximum { get; set; }
+        internal float Temperature { get; set; }
     }
 
     internal static class GPUInfoExtension
@@ -30,9 +32,14 @@ namespace RunCat365
             var resultLines = new List<string>
             {
                 TreeFormatter.CreateRoot($"{Strings.SystemInfo_GPU}:"),
-                TreeFormatter.CreateNode($"{Strings.SystemInfo_Average}: {gpuInfo.Average:f1}%", false),
-                TreeFormatter.CreateNode($"{Strings.SystemInfo_Maximum}: {gpuInfo.Maximum:f1}%", true)
+                TreeFormatter.CreateNode($"Usage: {gpuInfo.Maximum:f1}%", false)
             };
+
+            if (gpuInfo.Temperature > 0)
+            {
+                resultLines.Add(TreeFormatter.CreateNode($"Temperature: {gpuInfo.Temperature:f1}°C", true));
+            }
+
             return resultLines;
         }
     }
@@ -82,11 +89,19 @@ namespace RunCat365
                 var values = gpuCounters.Select(counter => counter.NextValue()).ToList();
                 var average = values.Count > 0 ? values.Average() : 0f;
                 var maximum = values.Count > 0 ? values.Max() : 0f;
+                var temperature = 0f;
+
+                try
+                {
+                    temperature = GetGPUTemperature();
+                }
+                catch { }
 
                 var gpuInfo = new GPUInfo
                 {
                     Average = Math.Min(100, average),
-                    Maximum = Math.Min(100, maximum)
+                    Maximum = Math.Min(100, maximum),
+                    Temperature = temperature
                 };
 
                 gpuInfoList.Add(gpuInfo);
@@ -97,7 +112,7 @@ namespace RunCat365
             }
             catch
             {
-                IsAvailable = false;
+                // 静默处理，不设置 IsAvailable = false
             }
         }
 
@@ -105,11 +120,46 @@ namespace RunCat365
         {
             if (!IsAvailable || gpuInfoList.Count == 0) return null;
 
+            var latestGpuInfo = gpuInfoList[^1];
             return new GPUInfo
             {
-                Average = gpuInfoList.Average(x => x.Average),
-                Maximum = gpuInfoList.Max(x => x.Maximum)
+                Average = latestGpuInfo.Average,
+                Maximum = latestGpuInfo.Maximum,
+                Temperature = latestGpuInfo.Temperature
             };
+        }
+
+        private static float GetGPUTemperature()
+        {
+            try
+            {
+                if (CPURepository.Computer == null)
+                    return 0;
+
+                foreach (var hardware in CPURepository.Computer.Hardware)
+                {
+                    try
+                    {
+                        hardware.Update();
+                    }
+                    catch { continue; }
+
+                    foreach (var sensor in hardware.Sensors)
+                    {
+                        if (sensor.SensorType == LHM.SensorType.Temperature && sensor.Value.HasValue)
+                        {
+                            if (hardware.HardwareType == LHM.HardwareType.GpuNvidia ||
+                                hardware.HardwareType == LHM.HardwareType.GpuAmd ||
+                                hardware.HardwareType == LHM.HardwareType.GpuIntel)
+                            {
+                                return sensor.Value.Value;
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+            return 0;
         }
 
         internal void Close()

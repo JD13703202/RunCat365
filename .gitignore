@@ -19,3 +19,6 @@ BundleArtifacts/
 
 # Wap
 WapForStore/**/*.assets.cache
+
+# Build outputs
+publish-x86/

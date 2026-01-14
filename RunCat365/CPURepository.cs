@@ -14,6 +14,8 @@
 
 using RunCat365.Properties;
 using System.Diagnostics;
+using System.Security.Principal;
+using LHM = LibreHardwareMonitor.Hardware;
 
 namespace RunCat365
 {
@@ -23,13 +25,16 @@ namespace RunCat365
         internal float User { get; set; }
         internal float Kernel { get; set; }
         internal float Idle { get; set; }
+        internal float Temperature { get; set; }
     }
 
     internal static class CPUInfoExtension
     {
         internal static string GetDescription(this CPUInfo cpuInfo)
         {
-            return $"{Strings.SystemInfo_CPU}: {cpuInfo.Total:f1}%";
+            if (cpuInfo.Temperature <= 0)
+                return $"{Strings.SystemInfo_CPU}: {cpuInfo.Total:f1}%";
+            return $"{Strings.SystemInfo_CPU}: {cpuInfo.Total:f1}% | Temperature: {cpuInfo.Temperature:f1}°C";
         }
 
         internal static List<string> GenerateIndicator(this CPUInfo cpuInfo)
@@ -41,6 +46,10 @@ namespace RunCat365
                 TreeFormatter.CreateNode($"{Strings.SystemInfo_Kernel}: {cpuInfo.Kernel:f1}%", false),
                 TreeFormatter.CreateNode($"{Strings.SystemInfo_Available}: {cpuInfo.Idle:f1}%", true)
             };
+
+            if (cpuInfo.Temperature > 0)
+                resultLines.Add(TreeFormatter.CreateNode($"Temperature: {cpuInfo.Temperature:f1}°C", true));
+
             return resultLines;
         }
     }
@@ -53,6 +62,19 @@ namespace RunCat365
         private readonly PerformanceCounter idleCounter;
         private readonly List<CPUInfo> cpuInfoList = [];
         private const int CPU_INFO_LIST_LIMIT_SIZE = 5;
+
+        // Added additional support for motherboard and GPU (helps expose CPU sensors on some systems)
+        public static readonly LHM.Computer Computer = new LHM.Computer
+        {
+            IsCpuEnabled = true,
+            IsMotherboardEnabled = true,
+            IsGpuEnabled = true
+        };
+
+        static CPURepository()
+        {
+            Computer.Open();
+        }
 
         internal CPURepository()
         {
@@ -76,12 +98,15 @@ namespace RunCat365
             var kernel = Math.Min(100, kernelCounter.NextValue());
             var idle = Math.Min(100, idleCounter.NextValue());
 
+            var temperature = GetCPUTemperature();
+
             var cpuInfo = new CPUInfo
             {
                 Total = total,
                 User = user,
                 Kernel = kernel,
                 Idle = idle,
+                Temperature = temperature,
             };
 
             cpuInfoList.Add(cpuInfo);
@@ -100,7 +125,8 @@ namespace RunCat365
                 Total = cpuInfoList.Average(x => x.Total),
                 User = cpuInfoList.Average(x => x.User),
                 Kernel = cpuInfoList.Average(x => x.Kernel),
-                Idle = cpuInfoList.Average(x => x.Idle)
+                Idle = cpuInfoList.Average(x => x.Idle),
+                Temperature = cpuInfoList.Average(x => x.Temperature)
             };
         }
 
@@ -110,6 +136,51 @@ namespace RunCat365
             userCounter.Close();
             kernelCounter.Close();
             idleCounter.Close();
+        }
+
+        // Only works if run as administrator
+        public static float GetCPUTemperature()
+        {
+            if (!IsRunningAsAdministrator())
+                return 0;
+
+            if (Computer == null)
+                return 0;
+
+            foreach (var hardware in Computer.Hardware)
+            {
+                hardware.Update();
+                foreach (var sensor in hardware.Sensors)
+                {
+                    if (sensor.SensorType == LHM.SensorType.Temperature && sensor.Value.HasValue)
+                    {
+                        if (hardware.HardwareType == LHM.HardwareType.Cpu)
+                        {
+                            return sensor.Value.Value;
+                        }
+                    }
+                }
+            }
+
+            foreach (var hardware in Computer.Hardware)
+            {
+                foreach (var sensor in hardware.Sensors)
+                {
+                    if (sensor.SensorType == LHM.SensorType.Temperature && sensor.Value.HasValue)
+                    {
+                        return sensor.Value.Value;
+                    }
+                }
+            }
+
+            return 0;
+        }
+
+        private static bool IsRunningAsAdministrator()
+        {
+            using var identity = WindowsIdentity.GetCurrent();
+            var principal = new WindowsPrincipal(identity);
+            return principal.IsInRole(WindowsBuiltInRole.Administrator);
         }
     }
 }

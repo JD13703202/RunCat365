@@ -18,7 +18,7 @@
     <PackageTags>cpu;cat;taskbar</PackageTags>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageIcon>app_icon.png</PackageIcon>
-    <Version>3.2.0</Version>
+    <Version>3.2.0-alpha</Version>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <StartupObject>RunCat365.Program</StartupObject>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
@@ -27,6 +27,10 @@
     <NoWarn>$(NoWarn);WFO5001</NoWarn>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.6-pre602" />
+  </ItemGroup>
 
   <ItemGroup>
     <Content Include="resources\app_icon.ico" />
