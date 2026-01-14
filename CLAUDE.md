@@ -2,7 +2,7 @@
 
 ## You Must
 
-- Please respond in Japanese.
+- Please respond in Chinese.
 - Commit to Git only when instructed.
 - If multiple requirements are given in a single instruction, divide the commits into appropriate sizes/granularities.
 
