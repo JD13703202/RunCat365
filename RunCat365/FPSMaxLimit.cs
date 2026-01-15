@@ -52,25 +52,15 @@ namespace RunCat365
 
         internal static bool TryParse([NotNullWhen(true)] string? value, out FPSMaxLimit result)
         {
-            FPSMaxLimit? nullableResult = value switch
+            result = value switch
             {
                 "40fps" => FPSMaxLimit.FPS40,
                 "30fps" => FPSMaxLimit.FPS30,
                 "20fps" => FPSMaxLimit.FPS20,
                 "10fps" => FPSMaxLimit.FPS10,
-                _ => null,
+                _ => FPSMaxLimit.FPS40,
             };
-
-            if (nullableResult is FPSMaxLimit nonNullableResult)
-            {
-                result = nonNullableResult;
-                return true;
-            }
-            else
-            {
-                result = FPSMaxLimit.FPS40;
-                return false;
-            }
+            return value is "40fps" or "30fps" or "20fps" or "10fps";
         }
     }
 }

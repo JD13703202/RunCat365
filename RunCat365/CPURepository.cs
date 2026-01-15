@@ -66,7 +66,6 @@ namespace RunCat365
         private const int TEMPERATURE_RETRY_DELAY_MS = 50;
         private static float lastValidTemperature = 0;
 
-        // Added additional support for motherboard and GPU (helps expose CPU sensors on some systems)
         public static readonly LHM.Computer Computer = new LHM.Computer
         {
             IsCpuEnabled = true,
@@ -86,7 +85,6 @@ namespace RunCat365
             kernelCounter = new PerformanceCounter("Processor", "% Privileged Time", "_Total");
             idleCounter = new PerformanceCounter("Processor", "% Idle Time", "_Total");
 
-            // Discards first return value
             _ = totalCounter.NextValue();
             _ = userCounter.NextValue();
             _ = kernelCounter.NextValue();
@@ -95,7 +93,6 @@ namespace RunCat365
 
         internal void Update()
         {
-            // Range of value: 0-100 (%)
             var total = Math.Min(100, totalCounter.NextValue());
             var user = Math.Min(100, userCounter.NextValue());
             var kernel = Math.Min(100, kernelCounter.NextValue());
@@ -141,7 +138,6 @@ namespace RunCat365
             idleCounter.Close();
         }
 
-        // Only works if run as administrator
         public static float GetCPUTemperature()
         {
             if (!IsRunningAsAdministrator())

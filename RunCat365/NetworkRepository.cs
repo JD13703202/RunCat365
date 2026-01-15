@@ -66,17 +66,16 @@ namespace RunCat365
 
         private static bool IsValidNetworkInterface(NetworkInterface networkInterface)
         {
-            if (networkInterface.NetworkInterfaceType == NetworkInterfaceType.Loopback) return false;
-            if (networkInterface.NetworkInterfaceType == NetworkInterfaceType.Tunnel) return false;
-            if (networkInterface.OperationalStatus != OperationalStatus.Up) return false;
+            if (networkInterface.NetworkInterfaceType == NetworkInterfaceType.Loopback ||
+                networkInterface.NetworkInterfaceType == NetworkInterfaceType.Tunnel ||
+                networkInterface.OperationalStatus != OperationalStatus.Up)
+                return false;
 
             var description = networkInterface.Description.ToLower();
-            if (description.Contains("vpn")) return false;
-            if (description.Contains("tap")) return false;
-            if (description.Contains("virtual")) return false;
-            if (description.Contains("tun")) return false;
-
-            return true;
+            return !description.Contains("vpn") &&
+                   !description.Contains("tap") &&
+                   !description.Contains("virtual") &&
+                   !description.Contains("tun");
         }
 
         internal void Update()

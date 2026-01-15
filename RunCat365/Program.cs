@@ -26,11 +26,9 @@ namespace RunCat365
         static void Main()
         {
             #if DEBUG
-            // Specify language manually.
             CultureInfo.CurrentUICulture = SupportedLanguage.English.GetDefaultCultureInfo();
             #endif
 
-            // Terminate RunCat365 if there's any existing instance.
             using var procMutex = new Mutex(true, "_RUNCAT_MUTEX", out var result);
             if (!result) return;
 
@@ -208,7 +206,6 @@ namespace RunCat365
 
         private int CalculateInterval(float cpuTotalValue)
         {
-            // Range of interval: 25-500 (ms) = 2-40 (fps)
             var speed = (float)Math.Max(1.0f, (cpuTotalValue / 5.0f) * fpsMaxLimit.GetRate());
             return (int)(500.0f / speed);
         }

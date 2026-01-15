@@ -58,21 +58,19 @@ namespace RunCat365
             IsAvailable = HasGPUHardware();
         }
 
+        private static bool IsGPUHardwareType(LHM.HardwareType hardwareType)
+        {
+            return hardwareType == LHM.HardwareType.GpuNvidia ||
+                   hardwareType == LHM.HardwareType.GpuAmd ||
+                   hardwareType == LHM.HardwareType.GpuIntel;
+        }
+
         private static bool HasGPUHardware()
         {
             if (CPURepository.Computer == null)
                 return false;
 
-            foreach (var hardware in CPURepository.Computer.Hardware)
-            {
-                if (hardware.HardwareType == LHM.HardwareType.GpuNvidia ||
-                    hardware.HardwareType == LHM.HardwareType.GpuAmd ||
-                    hardware.HardwareType == LHM.HardwareType.GpuIntel)
-                {
-                    return true;
-                }
-            }
-            return false;
+            return CPURepository.Computer.Hardware.Any(h => IsGPUHardwareType(h.HardwareType));
         }
 
         internal void Update()
@@ -115,9 +113,7 @@ namespace RunCat365
             {
                 foreach (var hardware in CPURepository.Computer.Hardware)
                 {
-                    if (hardware.HardwareType != LHM.HardwareType.GpuNvidia &&
-                        hardware.HardwareType != LHM.HardwareType.GpuAmd &&
-                        hardware.HardwareType != LHM.HardwareType.GpuIntel)
+                    if (!IsGPUHardwareType(hardware.HardwareType))
                         continue;
 
                     try

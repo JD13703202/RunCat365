@@ -73,27 +73,30 @@ namespace RunCat365
             score = 0;
             cat = new Cat.Running(Cat.Running.Frame.Frame0);
             roads.RemoveAll(r => r == Road.Sprout);
-            Enumerable.Range(0, 20 - roads.Count).ToList().ForEach(
-                _ => roads.Add((Road)(new Random().Next(0, 3)))
-            );
+
+            var random = new Random();
+            var roadsToAdd = 20 - roads.Count;
+            for (int i = 0; i < roadsToAdd; i++)
+            {
+                roads.Add((Road)random.Next(0, 3));
+            }
         }
 
         private bool Judge()
         {
             if (status != GameStatus.Playing) return false;
+
             var sproutIndices = roads
-                .Select((road, index) => { return road == Road.Sprout ? index : (int?)null; })
+                .Select((road, index) => road == Road.Sprout ? index : (int?)null)
                 .OfType<int>()
                 .ToList();
+
             if (cat.ViolationIndices().HasCommonElements(sproutIndices))
             {
                 status = GameStatus.GameOver;
                 return false;
             }
-            else
-            {
-                return true;
-            }
+            return true;
         }
 
         private void UpdateRoads()
@@ -202,56 +205,67 @@ namespace RunCat365
 
         private void RenderScene(object? sender, PaintEventArgs e)
         {
-            var rm = Resources.ResourceManager;
+            var resourceManager = Resources.ResourceManager;
             var prefix = systemTheme.GetString();
             var textColor = systemTheme == Theme.Light ? Color.Black : Color.White;
-            var g = e.Graphics;
+            var graphics = e.Graphics;
 
-            using (Font font15 = new("Consolas", 15))
-            using (Brush brush = new SolidBrush(textColor))
+            RenderScore(graphics, textColor);
+            RenderRoads(graphics, resourceManager, prefix);
+            RenderCat(graphics, resourceManager, prefix);
+            RenderOverlay(graphics, textColor);
+        }
+
+        private void RenderScore(Graphics graphics, Color textColor)
+        {
+            using var font = new Font("Consolas", 15);
+            using var brush = new SolidBrush(textColor);
+            var stringFormat = new StringFormat
             {
-                var stringFormat = new StringFormat
-                {
-                    Alignment = StringAlignment.Far,
-                    LineAlignment = StringAlignment.Center
-                };
-                g.DrawString($"{Strings.Game_Score}: {score}", font15, brush, new Rectangle(20, 0, 560, 50), stringFormat);
+                Alignment = StringAlignment.Far,
+                LineAlignment = StringAlignment.Center
+            };
+            graphics.DrawString($"{Strings.Game_Score}: {score}", font, brush, new Rectangle(20, 0, 560, 50), stringFormat);
+        }
+
+        private void RenderRoads(Graphics graphics, System.Resources.ResourceManager resourceManager, string prefix)
+        {
+            for (int index = 0; index < Math.Min(20, roads.Count); index++)
+            {
+                var road = roads[index];
+                var fileName = $"{prefix}_road_{road.GetString()}".ToLower();
+                using var image = resourceManager.GetObject(fileName) as Bitmap;
+                if (image is null) continue;
+                graphics.DrawImage(image, new Rectangle(index * 30, 200, 30, 50));
             }
+        }
 
-            roads.Take(20).Select((road, index) => new { road, index }).ToList().ForEach(
-                item =>
-                {
-                    var fileName = $"{prefix}_road_{item.road.GetString()}".ToLower();
-                    using Bitmap? image = rm.GetObject(fileName) as Bitmap;
-                    if (image is null) return;
-                    g.DrawImage(image, new Rectangle(item.index * 30, 200, 30, 50));
-                }
-            );
-
+        private void RenderCat(Graphics graphics, System.Resources.ResourceManager resourceManager, string prefix)
+        {
             var fileName = $"{prefix}_cat_{cat.GetString()}".ToLower();
-            using Bitmap? image = rm.GetObject(fileName) as Bitmap;
+            using var image = resourceManager.GetObject(fileName) as Bitmap;
             if (image is null) return;
-            g.DrawImage(image, new Rectangle(120, 130, 120, 100));
+            graphics.DrawImage(image, new Rectangle(120, 130, 120, 100));
+        }
 
-            if (status != GameStatus.Playing)
+        private void RenderOverlay(Graphics graphics, Color textColor)
+        {
+            if (status == GameStatus.Playing) return;
+
+            using var fillBrush = new SolidBrush(Color.FromArgb(77, 0, 0, 0));
+            graphics.FillRectangle(fillBrush, new Rectangle(0, 0, 600, 250));
+
+            using var font = new Font("Segoe UI", 16, FontStyle.Bold);
+            using var brush = new SolidBrush(textColor);
+            var message = status == GameStatus.GameOver
+                ? $"{Strings.Game_GameOver}\n{Strings.Game_PressSpaceToPlay}"
+                : Strings.Game_PressSpaceToPlay;
+            var stringFormat = new StringFormat
             {
-                using Brush fillBrush = new SolidBrush(Color.FromArgb(77, 0, 0, 0));
-                g.FillRectangle(fillBrush, new Rectangle(0, 0, 600, 250));
-
-                using Font font18 = new("Segoe UI", 16, FontStyle.Bold);
-                using Brush brush = new SolidBrush(textColor);
-                var message = Strings.Game_PressSpaceToPlay;
-                if (status == GameStatus.GameOver)
-                {
-                    message = $"{Strings.Game_GameOver}\n{message}";
-                }
-                var stringFormat = new StringFormat
-                {
-                    Alignment = StringAlignment.Center,
-                    LineAlignment = StringAlignment.Center
-                };
-                g.DrawString(message, font18, brush, new Rectangle(0, 0, 600, 250), stringFormat);
-            }
+                Alignment = StringAlignment.Center,
+                LineAlignment = StringAlignment.Center
+            };
+            graphics.DrawString(message, font, brush, new Rectangle(0, 0, 600, 250), stringFormat);
         }
     }
 

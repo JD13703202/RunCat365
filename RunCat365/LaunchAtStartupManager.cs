@@ -30,9 +30,7 @@ namespace RunCat365
         public bool GetEnabled()
         {
             startupTask ??= Task.Run(async () => await StartupTask.GetAsync("RunCatStartup")).Result;
-            if (startupTask is null) return false;
-            if (startupTask.State == StartupTaskState.Enabled) return true;
-            return false;
+            return startupTask?.State == StartupTaskState.Enabled;
         }
 
         public bool SetEnabled(bool enabled)
